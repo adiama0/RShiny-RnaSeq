@@ -16,6 +16,7 @@ library(dplyr)
 library(tibble)
 library(ggridges)
 library(edgeR)
+library(DESeq2)
 
 ui <- fluidPage(
   titlePanel("Soybean cotyledon gene expression across development"),
@@ -68,10 +69,15 @@ ui <- fluidPage(
           tabsetPanel(
             tabPanel("Summary",
               tableOutput("normalization_summary"),
-              tableOutput("CPM")
+              tableOutput("normalized_table")
             ),
-            tabPanel("Diagnostic Plots"),
-            tabPanel("Heatmap"),
+            tabPanel("Diagnostic Plots",
+              plotOutput("boxplot_distribution"),
+              plotOutput("variance_vs_mean")
+            ),
+            tabPanel("Heatmap",
+              plotOutput("heatmap")
+            ),
             tabPanel("PCA")
           )
         )
@@ -100,6 +106,8 @@ ui <- fluidPage(
 
 
 server <- function(input, output, session) {
+  
+  ################### Sample Information ###################
   
   # Load data from uploaded file, including gene names as a column
   load_data <- reactive({
@@ -192,6 +200,8 @@ server <- function(input, output, session) {
     filter_pivot_data(data, min_count, max_count)
   })
   
+  ################### Count Matrix ###################
+  
   # Filter data based on count_filter input for NORMALIZATION 
   filtered_data <- reactive({
     req(input$count_filter)
@@ -269,25 +279,28 @@ server <- function(input, output, session) {
     return(normalized_counts_df)
   }
   
+  # function for NORMALIZATION by Limma 
   normalize_by_limma <- function(dataf) {
+    
     # Create colData (condition for each sample)
     colData <- data.frame(
-      condition = rep(c("N", "P"), each = 3)  # Adjust based on your experimental design
+      condition = factor(rep(c("N", "P"), length.out = ncol(dataf) - 1))  # Dynamically adjusts conditions
     )
     row.names(colData) <- colnames(dataf)[-ncol(dataf)]  # Exclude 'Genes' column
     
     # Prepare the count matrix by removing the 'Genes' column
-    count_data <- dataf[, -ncol(dataf)]
-    
+    count_data <- as.matrix(dataf[, -ncol(dataf)])  # Convert to matrix for voom compatibility
     # Use the voom function from limma for normalization
-    # voom() normalizes the counts to log2 counts per million (log-CPM)
-    v <- voom(count_data, design = model.matrix(~condition, data = colData), plot = FALSE)
+    v <- voom(count_data, design = model.matrix(~condition, data = colData), plot = TRUE)  # Plot diagnostics
     # Extract the normalized log2 counts per million (log-CPM) from the voom object
-    normalized_counts <- (v$E)*10 # multiply by 10 to maintain same x axis
-    # Convert to a data frame
-    normalized_counts_df <- as_tibble(normalized_counts)
-    # Add the gene names from the 'Genes' column
+    normalized_counts <- v$E
+    # Convert to a data frame and add gene names
+    normalized_counts_df <- as.data.frame(normalized_counts)
     normalized_counts_df$Genes <- dataf$Genes
+    # Reorder columns to put 'Genes' first
+    normalized_counts_df <- normalized_counts_df[, c("Genes", setdiff(colnames(normalized_counts_df), "Genes"))]
+    # Convert back to tibble if necessary
+    normalized_counts_df <- as_tibble(normalized_counts_df)
     
     return(normalized_counts_df)
   }
@@ -298,13 +311,13 @@ server <- function(input, output, session) {
     data <- filtered_data()
     
     if (input$normalize_method == "CPM") {
-      return(head(normalize_by_cpm(data), 10))
+      return(normalize_by_cpm(data))
     } else if (input$normalize_method == "DESeq") {
-      return(head(normalize_by_deseq(data), 10))
+      return(normalize_by_deseq(data))
     } else if (input$normalize_method == "Limma") {
-      return(head(normalize_by_limma(data), 10))
+      return(normalize_by_limma(data))
     } else {
-      return(head(data), 10)
+      return(data)
     }
   })
   
@@ -352,6 +365,83 @@ server <- function(input, output, session) {
     summary_table
   })
   
+  plot_boxplot <- function(dataf, normalization_method) {
+    data_long <- pivot_longer(
+      dataf, 
+      cols = -Genes, 
+      names_to = "Samples", 
+      values_to = "Counts"
+    )
+    ggplot(data_long, aes(x = Samples, y = log10(Counts + 1), fill = Samples)) +
+      geom_boxplot() +
+      labs(
+        title = paste("Boxplot of", normalization_method, "Normalized Data"),
+        x = "Samples",
+        y = "Log10(Counts)"
+      )
+  }
+
+  plot_variance_vs_mean <- function(data, normalization_method) {
+    # Calculate the mean and the variance
+    variance <- data %>% select(-Genes) %>% apply(1, var)
+    mean <- data %>% select(-Genes) %>% apply(1, mean)
+    
+    # create a tibble for the plot 
+    variancevsmean <- tibble(
+      variance = variance,
+      mean = mean
+    )
+    
+    # add rownames in case of labeling
+    rownames(variancevsmean) <- data$Genes
+    
+    # plot and add smooth for average line
+    plot <- variancevsmean %>% ggplot() +
+      geom_point(aes(x=rank(mean), y=log10(variance))) +
+      geom_smooth(aes(x = rank(mean), y = log10(variance))) +
+      ggtitle(paste("Boxplot of", normalization_method, "Normalized Data"))
+    
+    return(plot)
+  }
+  
+  generate_heatmap <- function(data) {
+    # Prepare the normalized data matrix
+    normalized_matrix <- data %>%
+      as.data.frame() %>%  # Ensure it's a data frame
+      select(-Genes) %>%   # Remove the Genes column
+      `rownames<-`(data$Genes) %>%  # Set row names
+      as.matrix()  # Convert to matrix
+    
+    # Log-transform the data
+    log_matrix <- log2(normalized_matrix + 1)
+    
+    # Generate the heatmap
+    heatmap(
+      log_matrix,
+      Rowv = TRUE,  # Hierarchical clustering for rows
+      Colv = TRUE,  # Hierarchical clustering for columns
+      col = colorRampPalette(c("blue", "white", "red"))(100),  # Color scale
+      scale = "none",  # Data is already normalized/log-transformed
+      labRow = FALSE,  # Remove gene names from the y-axis
+      margins = c(5, 5),  # Adjust margins
+      main = "Clustered Heatmap of Normalized Counts",
+      xlab = "Samples",
+      ylab = "Genes"
+    )
+    
+    # Add a legend manually
+    par(xpd = TRUE)  # Allow plotting outside plot area
+    legend(
+      "top",
+      legend = c("Low", "Median", "High"),
+      fill = c("blue", "white", "red"),
+      title = "Expression Level",
+      border = "black",
+      box.col = "black"
+    )
+  }
+  
+  ################### RENDER FUNCTIONS ################### 
   # Render summary table
   output$table_summary <- renderTable({
     req(input$upload)
@@ -430,7 +520,7 @@ server <- function(input, output, session) {
       theme(legend.position = "none") 
   })
   
-  output$CPM <- renderTable({
+  output$normalized_table <- renderTable({
     req(normalized_data())
     head(normalized_data(), 10)  
   })
@@ -439,6 +529,23 @@ server <- function(input, output, session) {
     req(normalized_summaries())
     normalized_summaries()
   })
+  
+  output$boxplot_distribution <- renderPlot({
+    req(input$normalize_method)
+    plot_boxplot(normalized_data(), input$normalize_method)
+  })
+  
+  output$variance_vs_mean <- renderPlot({
+    req(input$normalize_method)
+    plot_variance_vs_mean(normalized_data(), input$normalize_method)
+  })
+  
+  output$heatmap <- renderPlot({
+    req(normalized_data())
+    
+    # Pass the normalized data to the heatmap function
+    generate_heatmap(normalized_data())
+  }, height = 900, width = 600)
 }
 
 # Run the application
