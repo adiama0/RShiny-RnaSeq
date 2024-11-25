@@ -78,7 +78,10 @@ ui <- fluidPage(
             tabPanel("Heatmap",
               plotOutput("heatmap")
             ),
-            tabPanel("PCA")
+            tabPanel("PCA",
+              plotOutput("variance_explained"),
+              plotOutput("PCA_plot")
+            )
           )
         )
       )
@@ -441,6 +444,68 @@ server <- function(input, output, session) {
     )
   }
   
+  plot_pca_variance <- function(data) {
+    # Transpose the data to have samples as rows and genes as columns
+    data_matrix <- as.matrix(data %>% select(-Genes))  # Remove Genes column
+    
+    # Perform PCA
+    pca_results <- prcomp(scale(t(data_matrix), center=TRUE, scale=TRUE))
+    
+    # Calculate variance explained
+    variance_explained <- pca_results$sdev^2 / sum(pca_results$sdev^2)
+    
+    # Create a tibble for plotting
+    variance_df <- tibble(
+      PC = factor(paste0("PC", seq_along(variance_explained))),
+      Variance = variance_explained
+    )
+    
+    # Plot the variance explained by each PC
+    ggplot(variance_df, aes(x = PC, y = Variance)) +
+      geom_bar(stat = "identity", fill = "skyblue") +
+      labs(
+        title = "Variance Explained by Principal Components",
+        x = "Principal Component",
+        y = "Variance Explained"
+      ) +
+      theme_minimal()
+  }
+  
+  plot_pca_scatter <- function(data) {
+    
+    # create matrix for data
+    data_matrix <- as.matrix(normalized_counts_df %>% select(-Genes))
+    
+    # create metadata table
+    sample_names <- colnames(data_matrix)
+    timepoint <- substr(sample_names, 1, 1)
+    replicate <- substr(sample_names, 3, 4)
+    meta <- tibble(sample = sample_names,
+                   timepoint = timepoint,
+                   replicate = replicate)
+    
+    # perform PCA on the data
+    pca_results <- prcomp(scale(t(data_matrix), center=TRUE, scale=TRUE))
+    pc_scores <- as_tibble(pca_results$x[, 1:2])
+    pc_scores <- pc_scores %>%
+      mutate(sample = meta$timepoint[match(row.names(pca_results$x), meta$sample)])
+    
+    variance_explained <- summary(pca_results)$importance[2, ] * 100
+    
+    # Create the PCA plot
+    plot <- ggplot(pc_scores, aes(x = PC1, y = PC2, color = sample)) +
+      geom_point(size = 4, alpha = 0.7)+
+      labs(
+        title = "PCA Plot",
+        x = paste0("PC1 (", round(variance_explained[1], 2), "%)"),
+        y = paste0("PC2 (", round(variance_explained[2], 2), "%)"),
+        color = "Sample"
+      ) +
+      theme_minimal()
+   
+   return(plot)
+  }
+  
   ################### RENDER FUNCTIONS ################### 
   # Render summary table
   output$table_summary <- renderTable({
@@ -542,10 +607,19 @@ server <- function(input, output, session) {
   
   output$heatmap <- renderPlot({
     req(normalized_data())
-    
     # Pass the normalized data to the heatmap function
     generate_heatmap(normalized_data())
   }, height = 900, width = 600)
+  
+  output$variance_explained <- renderPlot({
+    req(normalized_data())
+    plot_pca_variance(normalized_data())
+  })
+  
+  output$PCA_plot <- renderPlot({
+    req(normalized_data())  # Ensure the data is available  
+    plot_pca_scatter(normalized_data())
+  })
 }
 
 # Run the application
