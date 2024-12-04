@@ -27,105 +27,105 @@ ui <- fluidPage(
   # create 4 to 5 tab panels
   tabsetPanel(
     tabPanel("Sample Information",
-      # create sidebar layout
-      sidebarLayout(
-        sidebarPanel(
-          fileInput("upload", "Load counts data"),
-          sliderInput("filter_raw", "Raw count filter", min = 10, max = 16000, value = c(10,16000), step = 1)
-        ),
-        mainPanel(
-          # create 3 tab panels
-          tabsetPanel(
-            tabPanel("Sample Summary",
-              tableOutput("table_summary")
-            ),
-            tabPanel("Data Table",
-              tableOutput("table_unsorted"),
-              div(style = "text-align: center;", 
-                  actionButton("sort_button", "Sort Table"),
-                  actionButton("unsort_button", "Unsort Table"),
-                  actionButton("remove_button", "Remove 0 counts")),
-              div(style = "text-align: center;", 
-                  textOutput("sort_message"),
-                  textOutput("unsort_message"),
-                  textOutput("remove_message"))
-            ),
-            tabPanel("Plots",
-              plotOutput("histogram_raw"),
-              plotOutput("violin_raw"),
-              plotOutput("ridged")
-            )
-          )
-        )
-      )
+             # create sidebar layout
+             sidebarLayout(
+               sidebarPanel(
+                 fileInput("upload", "Load counts data"),
+                 sliderInput("filter_raw", "Raw count filter", min = 10, max = 16000, value = c(10,16000), step = 10)
+               ),
+               mainPanel(
+                 # create 3 tab panels
+                 tabsetPanel(
+                   tabPanel("Sample Summary",
+                            DT::DTOutput("table_summary") 
+                   ),
+                   tabPanel("Data Table",
+                            DT::DTOutput("table_unsorted"),  # Use DTOutput
+                            div(style = "text-align: center;", 
+                                actionButton("remove_button", "Remove 0 counts")),
+                            div(style = "text-align: center;", 
+                                textOutput("remove_message"))
+                   ),
+                   tabPanel("Plots",
+                            fluidRow(
+                              column(6, plotOutput("histogram_raw")),  # Left plot
+                              column(6, plotOutput("violin_raw"))     # Right plot
+                            ),
+                            fluidRow(
+                              column(12, plotOutput("ridged"))        # Bottom plot spanning full width
+                            )
+                   )
+                 )
+               )
+             )
     ),
     tabPanel("Count Matrix",
-      # create sidebar for input filters and output display
-      sidebarLayout(
-        sidebarPanel(
-          h3("Normalization"),
-          numericInput("count_filter", "Choose minimum count filter", 10),
-          radioButtons("normalize_method", 
-            "Choose your normalization method", 
-            c("CPM", "DESeq", "Limma")
-            ),
-          numericInput("num_pcs", 
-            "Select the number of principal components (PCs) to plot:", 
-            3,
-            min = 1,
-            max = 6)
-        ),
-        mainPanel(
-          # create tabset for 3 outputs
-          tabsetPanel(
-            tabPanel("Summary",
-              tableOutput("normalization_summary"),
-              tableOutput("normalized_table")
-            ),
-            tabPanel("Diagnostic Plots",
-              plotOutput("boxplot_distribution"),
-              plotOutput("variance_vs_mean")
-            ),
-            tabPanel("Heatmap",
-              plotOutput("heatmap")
-            ),
-            tabPanel("PCA",
-              plotOutput("variance_explained"),
-              plotOutput("PCA_plot"),
-              plotOutput("beeswarm")
-            )
-          )
-        )
-      )
+             # create sidebar for input filters and output display
+             sidebarLayout(
+               sidebarPanel(
+                 h3("Normalization"),
+                 numericInput("count_filter", "Choose minimum count filter", 10),
+                 radioButtons("normalize_method", 
+                              "Choose your normalization method", 
+                              c("CPM", "DESeq", "Limma")
+                 ),
+                 numericInput("num_pcs", 
+                              "Select the number of principal components (PCs) to plot:", 
+                              3,
+                              min = 1,
+                              max = 6)
+               ),
+               mainPanel(
+                 # create tabset for 3 outputs
+                 tabsetPanel(
+                   tabPanel("Summary",
+                            tableOutput("normalization_summary"),
+                            tableOutput("normalized_table")
+                   ),
+                   tabPanel("Diagnostic Plots",
+                            plotOutput("boxplot_distribution"),
+                            plotOutput("variance_vs_mean")
+                   ),
+                   tabPanel("Heatmap",
+                            plotOutput("heatmap")
+                   ),
+                   tabPanel("PCA",
+                            plotOutput("variance_explained"),
+                            plotOutput("PCA_plot"),
+                            plotOutput("beeswarm")
+                   )
+                 )
+               )
+             )
     ),
     tabPanel("Differential Expression Analysis",
-      # create sidebar layout, See from assignment 8
-      sidebarLayout(
-        sidebarPanel(
-          radioButtons("difex_method",
-            "Differential Expression Method",
-            c("DESeq", "Limma", "EdgeR")
-          ),
-          actionButton("run_difex", 
-                      "Run Differential Expression"
-          ),
-          sliderInput("pval", 
-                      "Set P-value Threshold (-log10 scale):", 
-                      min = 1, max = 100, value = 25, step = 1
-          )
-        ),
-        mainPanel(
-          tabsetPanel(
-            tabPanel("Table",
-              p('Differentially expressed genes'),
-              DT::DTOutput("difex_genes")
-            ),
-            tabPanel("Plot",
-              plotOutput("volcanoes")
-            )
-          )
-        )
-      )
+             # create sidebar layout, See from assignment 8
+             sidebarLayout(
+               sidebarPanel(
+                 radioButtons("difex_method",
+                              "Differential Expression Method",
+                              c("DESeq", "Limma", "EdgeR")
+                 ),
+                 actionButton("run_difex", 
+                              "Run Differential Expression"
+                 ),
+                 sliderInput("pval", 
+                             "Set P-value Threshold (-log10 scale):", 
+                             min = 1, max = 100, value = 25, step = 1
+                 )
+               ),
+               mainPanel(
+                 tabsetPanel(
+                   tabPanel("Table",
+                            p('Differentially expressed genes'),
+                            DT::DTOutput("difex_genes")
+                   ),
+                   tabPanel("Plot",
+                            plotOutput("volcanoes")
+                   )
+                 )
+               )
+             )
     )
   )
 )
@@ -147,10 +147,8 @@ server <- function(input, output, session) {
     return(data)
   })
   
-  #' Create summary table from counts dataframe 
-  #' @param dataf The loaded data frame
+  # Create summary table from counts dataframe 
   summarized_table <- function(dataf) {
-    
     columns <- colnames(dataf)
     condition <- sapply(strsplit(columns, "\\."), `[`, 1)
     replicates <- sapply(strsplit(columns, "\\."), `[`, 2)
@@ -162,44 +160,24 @@ server <- function(input, output, session) {
       Type = sapply(coldata, class),
       `Mean(sd) or Distinct values` = sapply(coldata, function(col) paste(unique(col), collapse = ", "))
     )
+    
     number_of_genes_row <- tibble(
       `Column name` = "Number of genes",
       Type = class(nrow(dataf)),
       `Mean(sd) or Distinct values` = as.character(nrow(dataf))
     )
     
-    summary_tibble <- bind_rows(summary_tibble, number_of_genes_row)
-    return(summary_tibble)
+    bind_rows(summary_tibble, number_of_genes_row)
   }
   
-  #' Sort the loaded dataframe of RAW COUNTS
-  #' @param dataf The loaded data frame
-  # Extract gene names from rownames and add them as a column
-  sort_data <- function(dataf) {
-    
-    # Extract gene names from rownames and add them as a column
-    gene_names <- rownames(dataf)
-    dataf$Genes <- gene_names
-    # Exclude non-numeric columns when calculating row sums
-    numeric_data <- dataf[sapply(dataf, is.numeric)]
-    total_counts <- rowSums(numeric_data)
-    # Sort the data frame by the total counts in descending order
-    sorted_dataf <- dataf[order(total_counts, decreasing = TRUE), ]
-    
-    # Return the sorted data frame
-    return(sorted_dataf)
-  }
-  
-  # Filter loaded dataframe of RAW COUNTS 
+  # Function to filter out rows with zero counts
   filter_zeros <- function(dataf) {
-    
     numeric_data <- dataf[, -ncol(dataf)]  # Exclude the last column (Genes)
     filtered_data <- dataf[apply(numeric_data, 1, function(row) all(row != 0)), ]
-    
     return(filtered_data)
   }
   
-  # Filter and picot data of RAW COUNTs based on min and max filters for plots
+  # Filter and count data of RAW COUNTs based on min and max filters for PLOTS
   filter_pivot_data <- function(dataf, min, max) {
     
     # Filter rows where the sum of the counts across samples 
@@ -259,7 +237,7 @@ server <- function(input, output, session) {
       sample = names(total_counts),
       value = total_counts
     )
-  
+    
     return(plot_data)
   }
   
@@ -278,7 +256,7 @@ server <- function(input, output, session) {
     
     return(normalized_data)
   }
-    
+  
   # Function for NORMALIZATION by deseq
   normalize_by_deseq <- function(dataf) {
     # create coldata 
@@ -407,7 +385,7 @@ server <- function(input, output, session) {
         y = "Log10(Counts)"
       )
   }
-
+  
   plot_variance_vs_mean <- function(data, normalization_method) {
     # Calculate the mean and the variance
     variance <- data %>% select(-Genes) %>% apply(1, var)
@@ -526,8 +504,8 @@ server <- function(input, output, session) {
         color = "Sample"
       ) +
       theme_minimal()
-   
-   return(plot)
+    
+    return(plot)
   }
   
   pca_scores <- reactive({
@@ -680,51 +658,42 @@ server <- function(input, output, session) {
   
   ################### RENDER FUNCTIONS ################### 
   # Render summary table
-  output$table_summary <- renderTable({
+  output$table_summary <- DT::renderDT({
     req(input$upload)
-    summarized_table(load_data())
+    data <- summarized_table(load_data())
+    
+    # Format the table using DT for better aesthetics
+    datatable(
+      data,
+      options = list(
+        pageLength = 5,  # Show 5 rows per page
+        autoWidth = TRUE,  # Automatically adjust column widths
+        dom = "t",  # Disable search, pagination, and info elements
+        columnDefs = list(list(className = 'dt-center', targets = "_all"))  # Center-align text
+      ),
+      rownames = FALSE,  # Hide row names
+      caption = "Summary of Sample Data"  # Add a caption to the table
+    )
   })
   
   # Render unsorted table initially
-  output$table_unsorted <- renderTable({
+  output$table_unsorted <- DT::renderDT({
     req(input$upload)
-    head(load_data(), 10)
-  })
+    data <- load_data()
+    data <- data[, !colnames(data) %in% "Genes"]  # Exclude the Genes column
+    data  # Display the loaded data as an interactive datatable
+  }, options = list(pageLength = 10))  # Show 10 rows per page
   
-  # Display sorted table after button is pressed
-  observeEvent(input$sort_button, {
-    output$table_unsorted <- renderTable({
-      req(input$upload)
-      head(sort_data(load_data()), 10)
-    })
-    
-    # Display sorting message after table is sorted
-    output$sort_message <- renderText({
-      "The table is now sorted."
-    })
-  })
-  
-  # Display original unsorted table 
-  observeEvent(input$unsort_button, {
-    output$table_unsorted <- renderTable({
-      req(input$upload)
-      head(load_data(), 10)
-    })
-    
-    # Display sorting message after table is sorted
-    output$unsort_message <- renderText({
-      "You are viewing the original unsorted table"
-    })
-  })
-  
-  # Display non-zero table
+  # Update the table to display non-zero rows when "Remove 0 Counts" button is clicked
   observeEvent(input$remove_button, {
-    output$table_unsorted <- renderTable({
+    output$table_unsorted <- DT::renderDT({
       req(input$upload)
-      head(filter_zeros(load_data()), 10)
-    })
+      data <- filter_zeros(load_data())# Filter the table to remove rows with zeros
+      data <- data[, !colnames(data) %in% "Genes"]  # Exclude the Genes column
+      data
+    }, options = list(pageLength = 10))  # Show 10 rows per page
     
-    # Display filtering message after table is updated
+    # Display a message indicating the table has been filtered
     output$remove_message <- renderText({
       "The table is now filtered to remove rows containing zeros."
     })
