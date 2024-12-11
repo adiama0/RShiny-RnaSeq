@@ -98,30 +98,39 @@ normalize_by_cpm <- function(dataf) {
 # Normalize by DESeq
 # Function for NORMALIZATION by deseq
 normalize_by_deseq <- function(dataf) {
-  # create coldata 
-  colData <- data.frame( 
+  
+  # Extract count data (excluding the "Genes" column)
+  countData <- dataf[, -ncol(dataf)]
+  
+  # Create colData with the same number of rows as countData columns
+  colData <- data.frame(
     condition = rep(c("N", "P"), each=3)
   )
-  row.names(colData) <- colnames(dataf)[-ncol(dataf)]
+  row.names(colData) <- colnames(countData)
   
-  # create dds object (dataf already filtered by input)
-  dds <- DESeqDataSetFromMatrix(countData = dataf[,-ncol(dataf)],
+  # Create DESeq2 dataset
+  dds <- DESeqDataSetFromMatrix(countData = as.matrix(countData),
                                 colData = colData,
-                                design= ~ condition)
-  # run DESeq on dds object
-  dds <- DESeq(dds)
+                                design = ~ condition)
   
-  # retreive results
-  res <- results(dds, name="condition_P_vs_N")
-  # Extract normalized count data
+  # Normalize counts using DESeq2
+  dds <- DESeq(dds)
   normalized_counts <- counts(dds, normalized = TRUE)
-  # Convert to a data frame and add the gene names
+  
+  # Convert to a tibble and add "Genes" column
   normalized_counts_df <- as_tibble(normalized_counts)
-  # Extract the gene names from the 'Genes' column
+  
+  # Add the Genes column as the first column
   normalized_counts_df$Genes <- dataf$Genes
+  
+  # Reorder columns so that "Genes" is the first column
+  normalized_counts_df <- normalized_counts_df %>%
+    select(Genes, everything())
   
   return(normalized_counts_df)
 }
+
+
 
 # Normalize by Limma
 # function for NORMALIZATION by Limma 
@@ -166,19 +175,19 @@ calculate_stats <- function(name, data, filtered_data) {
     Technique = name,
     `Number of Samples` = total_samples,
     `Total Genes` = total_genes,
-    `Genes Passing Filter` = paste(passing_genes, "(", passing_percentage, "%)"),
-    `Genes Not Passing Filter` = paste(failing_genes, "(", failing_percentage, "%)")
+    `Passing Genes` = passing_genes,
+    `Percent passing` = passing_percentage
   )
 }
 
 # Create summarization table for NORMALIZATION counts 
 normalization_summary <- function(original_data, filtered_data_cpm, filtered_data_deseq, filtered_data_limma) {
-  
   # Combine the summary for all techniques
   summary_cpm <- calculate_stats("CPM", original_data, filtered_data_cpm)
   summary_deseq <- calculate_stats("DESeq2", original_data, filtered_data_deseq)
   summary_limma <- calculate_stats("Limma", original_data, filtered_data_limma)
   
+  # Combine results
   rbind(summary_cpm, summary_deseq, summary_limma)
 }
 
@@ -425,7 +434,8 @@ create_facets <- function(deseq, edger, limma) {
 # Function to create a styled volcano plot
 theme_plot <- function(volcano_data, threshold) {
   volcano_data <- volcano_data %>% 
-    mutate(status = ifelse(-log10(pval) > threshold, "Significant", "Not Significant"))
+    mutate(status = ifelse(-log10(pval) > threshold, "Significant", "Not Significant")) %>%
+    na.omit()
   
   ggplot(volcano_data, aes(x = logFC, y = -log10(pval), color = status)) +
     geom_point(alpha = 0.7) +
@@ -435,7 +445,7 @@ theme_plot <- function(volcano_data, threshold) {
       y = "-Log10(P-value)",
       title = "Volcano Plots for Differential Expression Methods"
     ) +
-    geom_hline(yintercept = threshold, linetype = "dashed", color = "red") +
+    geom_hline(yintercept = threshold, linetype = "dashed", color = "black") +
     theme_minimal() +
-    scale_color_manual(values = c("Significant" = "blue", "Not Significant" = "gray"))
+    scale_color_manual(values = c("Significant" = "#DB6389", "Not Significant" = "#85E7F2"))
 }
