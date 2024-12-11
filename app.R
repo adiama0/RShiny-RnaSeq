@@ -92,6 +92,7 @@ ui <- fluidPage(
              # create sidebar layout, See from assignment 8
              sidebarLayout(
                sidebarPanel(
+                 width = 3,
                  radioButtons("difex_method",
                               "Differential Expression Method",
                               c("DESeq", "Limma", "EdgeR")
@@ -101,17 +102,27 @@ ui <- fluidPage(
                  ),
                  sliderInput("pval", 
                              "Set P-value Threshold (-log10 scale):", 
-                             min = 1, max = 100, value = 25, step = 1
+                             min = 1, max = 50, value = 25, step = 1
                  )
                ),
                mainPanel(
+                 width = 9,
                  tabsetPanel(
                    tabPanel("Table",
-                            p('Differentially expressed genes'),
                             DT::DTOutput("difex_genes")
                    ),
                    tabPanel("Plot",
-                            plotOutput("volcanoes")
+                            fluidRow(
+                              column(12,  plotOutput("volcanoes"))
+                            ),
+                            fluidRow(
+                              column(6,
+                                     p("DESeq Results"),
+                                     DT::DTOutput("difex_genes_deseq")),
+                              column(6, 
+                                     p("EdgeR Results"),
+                                     DT::DTOutput("difex_genes_edger"))
+                            )
                    )
                  )
                )
@@ -226,6 +237,20 @@ server <- function(input, output, session) {
     }
   })
   
+  difex_genes_deseq <- reactive({
+    req(normalized_data())  # Ensure normalized data is available
+    data <- filtered_data()  # Get the filtered data
+    data <- run_deseq(data)  # Run DESeq to get results
+    return(data)
+  })
+  
+  difex_genes_edger <- reactive({
+    req(normalized_data())  # Ensure normalized data is available
+    data <- filtered_data()  # Get the filtered data
+    data <- run_edger(data)  # Run DESeq to get results
+    return(data)
+  })
+  
   # Reactive to create combined differential expression results
   combined_volcano_data <- reactive({
     req(difex_results())
@@ -317,8 +342,8 @@ server <- function(input, output, session) {
   
   output$normalized_table <- DT::renderDT({
     req(normalized_data())
-    data <- normalized_data()
-    data <- data[, !colnames(data) %in% "Genes"]  # Exclude the Genes column
+    data <- normalized_data() 
+    data <- data %>% select(-Genes)
     datatable(
       data,
       options = list(pageLength = 10, scrollX = TRUE)  # Add horizontal scrolling for small width
@@ -359,6 +384,38 @@ server <- function(input, output, session) {
   
   # Output: Differential Expression Table
   output$difex_genes <- DT::renderDT({difex_results()})
+  
+  output$difex_genes_deseq <- DT::renderDT({
+    data <- difex_genes_deseq()  # Get the DESeq results
+    
+    # Convert the slider input to a p-value threshold
+    pval_threshold <- 10^(-input$pval)  # Convert slider value to p-value
+    
+    # Filter the DESeq results based on the p-value threshold
+    filtered_data <- data[data$padj < pval_threshold, ]  # Filter for p-value > threshold
+    filtered_data <- na.omit(filtered_data)
+    
+    # Display the filtered data in a datatable
+    datatable(filtered_data %>%
+                select(padj, log2FoldChange) 
+    )
+  })
+  
+  output$difex_genes_edger <- DT::renderDT({
+    data <- difex_genes_edger()  # Get the DESeq results
+    
+    # Convert the slider input to a p-value threshold
+    pval_threshold <- 10^(-input$pval)  # Convert slider value to p-value
+    
+    # Filter the DESeq results based on the p-value threshold
+    filtered_data <- data[data$PValue < pval_threshold, ]  # Filter for p-value > threshold
+    filtered_data <- na.omit(filtered_data)
+    
+    # Display the filtered data in a datatable
+    datatable(filtered_data %>%
+                select(PValue, logFC)
+    )
+  })
   
   # Output: Volcano Plot
   output$volcanoes <- renderPlot({
