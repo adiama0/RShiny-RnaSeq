@@ -30,6 +30,7 @@ The app has three main components:
 
 3. **`test_app.R` (Testing Shiny Application Functionality)**:
    - This file contains unit tests for the core functions used in the Shiny app, ensuring the correctness of critical data manipulation and normalization processes. It relies on the testthat and shinytest packages to define the expected behavior of functions with mock data. Each function is tested independently with assertions to check the expected outcomes.
+   - The mock_data used in the tests simulates gene expression data, where each row represents a gene, and each column represents a sample's count data. 
 
 ### Example Workflow in the App
 
