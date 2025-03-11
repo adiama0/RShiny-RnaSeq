@@ -45,7 +45,6 @@ The app has three main components:
 ## Features
 
 - **PCA Visualization**: Displays a scatter plot of the first two principal components and a beeswarm plot for the selected number of principal components.
-<img src="images/principal_component_analysis.png" alt="PCA viz" width="500"/>
 - **Differential Expression Analysis**: Implements DESeq2, EdgeR, and Limma for RNA-seq data analysis. Users can compare the results of different methods side by side.
 - **Volcano Plot**: Visualizes the results of differential expression analyses with customizable significance thresholds.
 - **Interactivity**: The user can interact with the app by uploading files, selecting analysis methods, and adjusting visualization parameters (such as the p-value threshold for volcano plots).
@@ -75,26 +74,39 @@ The app has three main components:
 
 1. **Upload Gene Count Data**: Upload a CSV file containing gene expression counts. The app will process this data.
 2. **Normalize Count Data**: Normalize count data using one of the selected 3 methods.
-3. **Visualize PCA**: Select the number of principal components to visualize and view the PCA scatter plot and beeswarm plot.
+3. **Visualize PCA**:
+<div align="center">
+   <img src="images/principal_component_analysis.png" alt="PCA viz" width="500"/>
+</div>
+
 4. **Perform Differential Expression Analysis**: Select a differential expression method (DESeq2, EdgeR, or Limma) and run the analysis.
 5. **View Volcano Plot**: The app will generate a volcano plot showing the results of differential expression analysis, allowing you to customize the significance threshold and explore the results.
-
 ---
 
 ## Interactive Options
 
 - **File Upload**: Upload your gene expression data in CSV format.
+<div align="center">
+   <img src="images/sample_info.png" alt="sample_info" width="500"/>
+</div>
+
 - **Filters**:
   - Filter raw counts based on minimum and maximum values.
   - Filter genes based on minimum counts for normalization.
 - **Normalization**:
   - Choose between CPM, DESeq2, or Limma normalization methods.
+  - Visualize normalization effects on samples
+<div align="center">
+   <img src="images/diagnostic_plots.png" alt="D_viz" width="500"/>
+</div>
+
 - **Differential Expression**:
   - Select a method (DESeq2, EdgeR, or Limma) and run the analysis.
   - Adjust the p-value threshold for significance.
-- **Plots**:
-  - Interactive plots with tooltips and zoom options.
-  - Download plots as PNG or PDF.
+<div align="center">
+   <img src="images/differential_gene_expression_results.png" alt="DE_res" width="500"/>
+   <img src="images/DE_visualization.png" alt="DE" width="500"/>
+</div>
 
 ---
 
