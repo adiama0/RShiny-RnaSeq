@@ -4,7 +4,6 @@ library(bslib)
 library(ggplot2)
 library(colourpicker)
 library(tidyverse)
-library(bigPint) # for dataset download
 library(SummarizedExperiment)
 library(DelayedArray)
 library(dplyr)
@@ -12,9 +11,9 @@ library(tibble)
 library(ggridges)
 library(edgeR)
 library(DESeq2)
-library(ggbeeswarm)
 library(DT)
-
+library(pheatmap)
+library(viridis)
 
 # Summarized Table
 # Create summary table from counts dataframe 
@@ -276,7 +275,7 @@ plot_pca_variance <- function(data) {
   data_matrix <- as.matrix(data %>% select(-Genes))  # Remove Genes column
   
   # Perform PCA
-  pca_results <- prcomp(scale(t(data_matrix), center=TRUE, scale=TRUE))
+  pca_results <- prcomp(scale(t(data_matrix), center = TRUE, scale = TRUE))
   
   # Calculate variance explained
   variance_explained <- pca_results$sdev^2 / sum(pca_results$sdev^2)
@@ -300,11 +299,10 @@ plot_pca_variance <- function(data) {
 
 # Plot PCA Scatter
 plot_pca_scatter <- function(data) {
-  
-  # create matrix for data
+  # Create matrix for data
   data_matrix <- as.matrix(data %>% select(-Genes))
   
-  # create metadata table
+  # Create metadata table
   sample_names <- colnames(data_matrix)
   timepoint <- substr(sample_names, 1, 1)
   replicate <- substr(sample_names, 3, 4)
@@ -312,17 +310,18 @@ plot_pca_scatter <- function(data) {
                  timepoint = timepoint,
                  replicate = replicate)
   
-  # perform PCA on the data
-  pca_results <- prcomp(scale(t(data_matrix), center=TRUE, scale=TRUE))
+  # Perform PCA on the data
+  pca_results <- prcomp(scale(t(data_matrix), center = TRUE, scale = TRUE))
   pc_scores <- as_tibble(pca_results$x[, 1:2])
   pc_scores <- pc_scores %>%
     mutate(sample = meta$timepoint[match(row.names(pca_results$x), meta$sample)])
   
+  # Calculate variance explained
   variance_explained <- summary(pca_results)$importance[2, ] * 100
   
   # Create the PCA plot
   plot <- ggplot(pc_scores, aes(x = PC1, y = PC2, color = sample)) +
-    geom_point(size = 4, alpha = 0.7)+
+    geom_point(size = 4, alpha = 0.7) +
     labs(
       title = "PCA Plot",
       x = paste0("PC1 (", round(variance_explained[1], 2), "%)"),
@@ -334,33 +333,23 @@ plot_pca_scatter <- function(data) {
   return(plot)
 }
 
-# Plot Beeswarm
-plot_beeswarm <- function(pca_data, num_pcs) {
-  
-  # Extract the first `num_pcs` principal components as a tibble
-  pc_scores <- as_tibble(pca_data$x[, 1:num_pcs])
-  
-  # Pivot longer to reshape the data
-  pcs_longer <- pivot_longer(
-    pc_scores, 
-    names_to = "PC", 
-    values_to = "values", 
-    cols = everything() # Selects all columns in pc_scores
-  )
-  
-  # Generate beeswarm plot
-  ggplot(pcs_longer, aes(x = PC, y = values, color = PC)) +
-    geom_beeswarm(cex = 1.5) +
-    theme_minimal() +
-    labs(
-      title = paste("Beeswarm Plot for Top", num_pcs, "Principal Components"),
-      x = "Principal Components",
-      y = "Value"
-    ) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-}
 
 # Differential Expression Functions
+
+# Helper function to run differential expression based on the selected method
+run_difex <- function(method, dataf) {
+  if (method == "DESeq") {
+    return(run_deseq(dataf))
+  } else if (method == "EdgeR") {
+    return(run_edger(dataf))
+  } else if (method == "Limma") {
+    return(run_limma(dataf))
+  } else {
+    stop("Invalid differential expression method selected.")
+  }
+}
+
+# DESeq2 differential expression
 run_deseq <- function(dataf) {
   colData <- data.frame(condition = rep(c("N", "P"), each = 3))
   rownames(colData) <- colnames(dataf)[-ncol(dataf)]
@@ -373,10 +362,10 @@ run_deseq <- function(dataf) {
   # Assign Genes as row names
   res_df <- as.data.frame(res)
   rownames(res_df) <- dataf$Genes
-  
   return(res_df)
 }
 
+# EdgeR differential expression
 run_edger <- function(dataf) {
   colData <- data.frame(group = rep(c("N", "P"), each = 3))
   countData <- dataf %>% select(-Genes)
@@ -390,6 +379,7 @@ run_edger <- function(dataf) {
   return(res)
 }
 
+# Limma differential expression
 run_limma <- function(dataf) {
   group <- rep(c("N", "P"), each = 3)
   design <- model.matrix(~ group)
