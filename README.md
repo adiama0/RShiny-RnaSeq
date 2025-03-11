@@ -45,6 +45,7 @@ The app has three main components:
 ## Features
 
 - **PCA Visualization**: Displays a scatter plot of the first two principal components and a beeswarm plot for the selected number of principal components.
+[PCA Visualizaiton](images/principal_component_analysis.png)
 - **Differential Expression Analysis**: Implements DESeq2, EdgeR, and Limma for RNA-seq data analysis. Users can compare the results of different methods side by side.
 - **Volcano Plot**: Visualizes the results of differential expression analyses with customizable significance thresholds.
 - **Interactivity**: The user can interact with the app by uploading files, selecting analysis methods, and adjusting visualization parameters (such as the p-value threshold for volcano plots).
